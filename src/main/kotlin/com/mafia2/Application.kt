@@ -1,5 +1,6 @@
 package com.mafia2
 
+import com.mafia2.Working.MafiaGame
 import com.mafia2.plugins.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -11,8 +12,9 @@ fun main() {
 }
 
 fun Application.module() {
+    val mafiaGame: MafiaGame = MafiaGame()
     configureMonitoring()
     configureSerialization()
-    configureSockets()
+    configureSockets(mafiaGame)
     configureRouting()
 }
