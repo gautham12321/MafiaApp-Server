@@ -46,23 +46,26 @@ data class gameSettings(
 
 @Serializable
 data class GameState(
-    val day:Int=0,
+    val day: Int = 0,
     val currentPhase: Phase = Phase.GAMESTARTING,
-    val currentRoleTurn: Role?=null,
-    var players:List<Player> = emptyList(),
-    val RolesMap:Map<Int,Role> = emptyMap(),
-    val gameSettings:gameSettings = gameSettings(),
-    val toBeKilled:Int?=null,
-    val toBeSaved:Int?=null,
-    val toSuspect:Int?=null,
-    val isSuspect:Boolean=false,
-    var isVoting:Boolean=false,
-    val votersList:Map<Int,Int> = emptyMap(),
-    val isGameOver:Boolean=false,
-    val isWinnerMafia:Boolean = false
+    val currentRoleTurn: Role? = null,
+    var players: List<Player> = emptyList(),
+    val playersNeeded: Int = 5,
+    val RolesMap: Map<Int, Role> = emptyMap(),
+    val gameSettings: gameSettings = gameSettings(),
+    val toBeKilled: Int? = null,
+    val toBeSaved: Int? = null,
+    val toSuspect: Int? = null,
+    val isSuspect: Boolean = false,
+    var isVoting: Boolean = false,
+    val votersList: Map<Int, Int> = emptyMap(),
+    val isGameOver: Boolean = false,
+    val isWinnerMafia: Boolean = false,
+    val id: String,
+    val host :Int?=null
 
 
-    ){
+){
 
 
 }
