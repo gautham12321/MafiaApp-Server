@@ -1,14 +1,13 @@
 package com.mafia2.plugins
 
 import com.mafia2.Working.MafiaGame
+import com.mafia2.data.DoAction
 import com.mafia2.data.PlayerDet
 import io.ktor.server.application.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.serialization.json.Json
 import java.time.Duration
 
@@ -27,14 +26,100 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
                     if (it is Frame.Text) {
 
 
-                        if (extractAction(it.readText()) == "player_details") { // check if its player details
+                        when(extractAction(it.readText()) ) {
 
-                            val playerDetails: PlayerDet =
-                                Json.decodeFromString(it.readText().substringAfter("#"))
+                            "player_details" -> {
 
-                            this.send(Frame.Text(playerDetails.toString()))
-                            //println(roomId)
-                            mafiaGame.connectPlayer(playerDetails, this)
+                                val playerDetails: PlayerDet =
+                                    Json.decodeFromString(it.readText().substringAfter("#"))
+
+                                send(playerDetails.toString())
+                                //println(roomId)
+                                mafiaGame.connectPlayer(playerDetails, this)
+                            }
+
+                            "randomize_roles" -> {
+
+                                mafiaGame.randomizeRoles()
+
+                            }
+
+                            "start_game" -> {
+
+                                mafiaGame.startGame()
+
+
+                            }
+
+                            "role_action" -> {
+
+                                val do_action: DoAction =
+                                    Json.decodeFromString(it.readText().substringAfter("#"))
+
+                                mafiaGame.RoleAction(do_action)
+
+
+                            }
+
+                            "vote" -> {
+
+
+                                val do_action: DoAction =
+                                    Json.decodeFromString(it.readText().substringAfter("#"))
+                                mafiaGame.vote(do_action)
+                            }
+                            "restartGame"->{
+
+
+                                mafiaGame.reset()
+
+                            }
+                            //Testing purpose
+                            //TESTINGGGGGG
+                            "doDefaultTests"->{
+                                val players = "t_addPlayers#[\n" +
+                                        "    {\"name\":\"gau\"},\n" +
+                                        "     {\"name\":\"adam\"},\n" +
+                                        "      {\"name\":\"fd\"},\n" +
+                                        "       {\"name\":\"sfd\"},\n" +
+                                        "        {\"name\":\"gdd\"}\n" +
+                                        "\n" +
+                                        "    \n" +
+                                        "]"
+                                mafiaGame.showCurrentPlayers_t(this)
+                                addPlayers(players,mafiaGame)
+
+                                mafiaGame.randomizeRoles()
+                                mafiaGame.startGame()
+
+
+
+
+
+                            }
+                            "t_addPlayers" -> {
+
+                                addPlayers(it.readText(), mafiaGame)
+
+                            }
+
+                            "showCurrentPlayers"->{
+                                mafiaGame.showCurrentPlayers_t(this)
+                            }
+                            "doCurrentRole"->{
+                                val target: Int = it.readText().substringAfter("#").toInt()
+                                mafiaGame.doMafiaAction_t(target)
+                            }
+                            "voteall"->{
+                                val target: Int = it.readText().substringAfter("#").toInt()
+                                mafiaGame.doAllVotes_t(target)
+
+
+                            }
+
+
+                            else->{}
+
 
                         }
 
@@ -45,11 +130,22 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
                 e.printStackTrace()
             } finally {
                 this.close()
+                mafiaGame.disconnectPlayer(this)
             }
         }
     }
 
 }
+
+private fun DefaultWebSocketServerSession.addPlayers(
+    it: String,
+    mafiaGame: MafiaGame
+) {
+    val allPlayers: List<PlayerDet> =
+        Json.decodeFromString(it.substringAfter("#"))
+    mafiaGame.connectPlayersForTest(allPlayers, this)
+}
+
 fun extractAction(readText: String): String {
 
     val message = readText.substringBefore("#")
