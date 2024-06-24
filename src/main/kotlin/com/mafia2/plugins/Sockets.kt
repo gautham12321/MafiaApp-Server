@@ -10,7 +10,6 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.Duration
 
@@ -51,6 +50,11 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
 
                                 mafiaGame.joinRoom(request.information,this,request.roomId)
 
+                            }
+                            "Role_Revealed" -> {
+
+                                val roomId = it.readText().substringAfter("#")
+                                mafiaGame.rooms[roomId]?.roleRevealed() ?: {println("Room not Found")}
                             }
 
 
@@ -103,13 +107,30 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
                                 with(mafiaGame.rooms[roomId]!!){
 
                                     reset()
-                                    randomizeRoles()
-                                    startGame()
+                                    /*randomizeRoles()
+                                    startGame()*/
 
                                 }
 
 
                             }
+                            //Might need change
+                            "Search_Room"->{
+                                val roomId = it.readText().substringAfter("#")
+
+                               mafiaGame.searchRoom(roomId,this)
+
+                                //Could be done in search room itself
+                                //might need a declared setup variable
+
+
+
+                            }
+                            "Sync_Players"->{
+                                val roomId = it.readText().substringAfter("#")
+                                mafiaGame.rooms[roomId]?.syncPlayers()
+                            }
+
                             //Testing purpose
                             //TESTINGGGGGG
 
@@ -144,6 +165,11 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
                                 val target: Int = it.readText().substringAfter("#").toInt()
                                 mafiaGame.doAllVotes_t(target)
 
+
+                            }
+                            "revealed"->{
+                                val roomId = it.readText().substringAfter("#")
+                                    mafiaGame.rooms[roomId]?.roleRevealed()
 
                             }
 

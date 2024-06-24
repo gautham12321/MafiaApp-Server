@@ -23,7 +23,7 @@ import kotlin.random.Random
 
 class Room (val RoomState: GameState){
 
-
+    var hostPlayer:Player?=null
     val state = MutableStateFlow(RoomState)
     var currentTurn=Role.CITIZEN
     var toKill:Int?=null
@@ -54,15 +54,18 @@ class Room (val RoomState: GameState){
 
 
         playerSockets.values.forEach { session ->
+            println(state)
             session.send(Json.encodeToString(state))
         }
 
     }
     fun setHost(player: Player) {
+        hostPlayer=player
         state.update {
             it.copy(host = player.id)
         }
     }
+
 
     fun addPlayer(player: Player, session: WebSocketSession) {
         if(playerSockets.containsKey(player.id)){
@@ -92,6 +95,7 @@ class Room (val RoomState: GameState){
 
         }
     }
+
     fun randomizeRoles(){
         if(state.value.players.size<state.value.playersNeeded){
 
@@ -119,8 +123,17 @@ class Room (val RoomState: GameState){
 
 
     }
+    fun roleRevealed() {
+        state.update {
+            it.copy(roleRevealedNo = it.roleRevealedNo.inc())
+        }
+
+
+
+    }
+
     fun updateGameSettings(settings: gameSettings) {
-        val noPlayers = settings.noGod + settings.noMafia + settings.noDetective + settings.noDoctor + settings.noCitizen
+        val noPlayers = settings.totalP // changed up here to support the new gamesettings with totalp
         state.update {
             it.copy(gameSettings = settings, playersNeeded = noPlayers)
         }
@@ -128,11 +141,16 @@ class Room (val RoomState: GameState){
     }
     fun startGame() {
         state.update {
+
             it.copy(currentPhase = Phase.DAY, day = 1,)
 
         }
+        println("CHECK LOOP")
+
         gameScope.launch {
+            println("COROTINE START")
             while(true){
+                println("$state:INFINITE LOOP")
                 var mafia:Int = 0
                 var normalPlayers:Int=0
 
@@ -213,9 +231,9 @@ class Room (val RoomState: GameState){
                         val p= it.players.map {
 
                             if(it.id==toKill){
-                                Player(it.id,it.name,false)
+                                Player(it.id,it.name,false,it.avatar)
                             }else{
-                                Player(it.id,it.name,it.isAlive)
+                                Player(it.id,it.name,it.isAlive,it.avatar)
                             }
                         }
                         it.copy(players = p)
@@ -305,7 +323,7 @@ class Room (val RoomState: GameState){
 
     private fun checkifGameOver(mafia: Int, normalPlayers: Int): Boolean {
         println("$mafia#$normalPlayers")
-        if (mafia == normalPlayers || mafia == 0) {
+        if (mafia >= normalPlayers || mafia == 0) {
 
             state.update {
                 it.copy(currentPhase = Phase.GAMEOVER, isGameOver = true, isWinnerMafia = mafia == normalPlayers )
@@ -419,14 +437,18 @@ class Room (val RoomState: GameState){
             votingMap[action.affectedPlayer]=1
 
         }
+        state.update {
+            it.copy(votedPlayersID = it.votedPlayersID.plus(action.player.id) )
+        }
+
         var noVotes =0
         votingMap.forEach { _, i2 ->
 
             noVotes+=i2
         }
 
-        if(noVotes==state.value.players.size){
-            println("Kicked")
+        if(noVotes==state.value.players.filter { it.isAlive }.size){
+            //println("Kicked")
 
             voteKick()
         }
@@ -437,29 +459,40 @@ class Room (val RoomState: GameState){
     {
 
         var highest = votingMap.keys.first()
+        var noOfvotes = votingMap[highest]!!
         votingMap.forEach {
             if(it.value>votingMap[highest]!!){
 
                 highest=it.key
+                noOfvotes=it.value
 
             }
         }
+        if(votingMap.minus(highest).containsValue(noOfvotes)){
+
+            highest=-1
+        }
+
         println(highest)
         println(votingMap)
-
+        if(highest!=-1){ // sends -1 if skip vote
         state.update {
+
 
             val p= it.players.map {
 
                 if(it.id==highest){
-                    Player(it.id,it.name,false)
+                    Player(it.id,it.name,false,it.avatar)
                 }else{
-                    Player(it.id,it.name,it.isAlive)
+                    Player(it.id,it.name,it.isAlive,it.avatar)
                 }
             }
-            it.copy(players = p, isVoting = false)
+            it.copy(players = p)
 
         }
+        }
+
+        state.update { it.copy(isVoting = false,votedPlayersID = emptyList()) }
         println("Updated")
         isVoting=false
         votingMap.clear()
@@ -474,14 +507,32 @@ class Room (val RoomState: GameState){
             val p= it.players.map {
 
 
-                Player(it.id,it.name,true)
+                Player(it.id,it.name,true,it.avatar)
 
             }
-            it.copy(day = 0,currentPhase = Phase.DAY,currentRoleTurn = null, RolesMap = emptyMap(),
+            it.copy(day = 0,currentPhase = Phase.GAMESTARTING,currentRoleTurn = null, RolesMap = emptyMap(),
                 isGameOver = false, isWinnerMafia = false, toBeKilled = null, toBeSaved = null, toSuspect = null,
-                isVoting = false, votersList = emptyMap(), isSuspect = false, players = p)
+                isVoting = false, isSuspect = false, players = p,roleRevealedNo = 0)
 
         }
+
+    }
+    fun syncPlayers() {
+
+        state.update {
+            it.copy(syncNav = true)
+        }
+        gameScope.launch {
+            delay(5000)
+            setSyncOff()
+        }
+
+    }
+    fun setSyncOff(){
+        state.update {
+            it.copy(syncNav = false)
+        }
+
 
     }
 
@@ -516,7 +567,6 @@ class Room (val RoomState: GameState){
 
 
     }
-
 
 
 

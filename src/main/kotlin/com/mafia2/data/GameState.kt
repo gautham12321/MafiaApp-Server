@@ -21,6 +21,8 @@ enum class Role{
 }
 @Serializable
 data class gameSettings(
+
+    var totalP:Int = defaultSettings().totalP,
     var noGod:Int= defaultSettings().noGod,
     var noDetective :Int = defaultSettings().noDetective,
     var noMafia:Int = defaultSettings().noMafia,
@@ -39,6 +41,7 @@ data class gameSettings(
              noMafia=1,
              noDoctor=1,
              noCitizen=2,
+             totalP = 5
          )
         }
         }
@@ -58,15 +61,23 @@ data class GameState(
     val toSuspect: Int? = null,
     val isSuspect: Boolean = false,
     var isVoting: Boolean = false,
-    val votersList: Map<Int, Int> = emptyMap(),
     val isGameOver: Boolean = false,
     val isWinnerMafia: Boolean = false,
     val id: String,
-    val host :Int?=null
+    val host :Int?=null,
+    val syncNav:Boolean=false,
+    val roleRevealedNo:Int=0,
+    val votedPlayersID:List<Int> = emptyList(),
 
 
 ){
 
+
+    fun getPlayerInstance(userId:Int):Player {
+
+        return players.find { it.id == userId }!!
+
+    }
 
 }
 

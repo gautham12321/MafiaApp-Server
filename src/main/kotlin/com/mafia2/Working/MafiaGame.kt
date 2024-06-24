@@ -7,13 +7,22 @@ import com.mafia2.data.GameState
 
 import com.mafia2.data.Player
 import com.mafia2.data.PlayerDet
+import com.mafia2.data.Request
+import com.mafia2.data.Setup
 
 import io.ktor.server.plugins.NotFoundException
+import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
+import io.ktor.websocket.send
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
@@ -24,13 +33,19 @@ class MafiaGame {
 
 
     val rooms = ConcurrentHashMap<String,Room>()
+    val setup = MutableStateFlow(Setup())
     //val RoomId = AtomicInteger(1000)
     private val playerSockets = ConcurrentHashMap<Int, WebSocketSession>()
+
+
 
     private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     var testRoomId:String=""
 
-    fun createRoom(player: PlayerDet,host: WebSocketSession){
+    fun createRoom(player: PlayerDet,host: WebSocketSession)
+    {
+
+
         var roomId:String=""
        do{
            roomId= generateRandomString()
@@ -42,23 +57,31 @@ class MafiaGame {
         )
         testRoomId=roomId
 
-
-        joinRoom(player,host,roomId,true)
+println(rooms)
+        joinRoom(player, host,roomId,true)
 
 
     }
 
-     fun joinRoom(playerdet: PlayerDet,session: WebSocketSession, roomId: String, isHost: Boolean = false,playerConnection:(WebSocketSession)->Int? ={ connectPlayer(it)}) {
+     fun joinRoom(playerdet: PlayerDet,session: WebSocketSession, roomId: String, isHost: Boolean = false,
+                  playerConnection:(WebSocketSession)->Int? ={ connectPlayer(it)}) {
         val room = rooms[roomId] ?: throw NotFoundException()
         val playerid = playerConnection(session)
-        val player = Player(id = playerid ?: return,name = playerdet.name)
+        val player = Player(id = playerid ?: return,name = playerdet.name,avatar = playerdet.avatar)
         if(isHost){
 
             room.setHost(player)
 
         }
-        room.addPlayer(player,session)
+         setup.update {
+             it.copy(playerDetails = player, hostDetails = rooms[roomId]?.hostPlayer)
+         }
+         gameScope.launch {
+             session.send(Json.encodeToString(setup.value))
+         }
 
+        room.addPlayer(player,session)
+    println(room.playerSockets)
 
 
     }
@@ -123,6 +146,7 @@ class MafiaGame {
     }
 
 
+
     private fun getRandomId():Int {
         var id = 0
         do {
@@ -146,11 +170,22 @@ class MafiaGame {
 
 
     }*/
+    fun searchRoom(roomId: String, session: WebSocketSession) {
+        val roomExists=rooms.containsKey(roomId)
+        val hostId = rooms[roomId]?.state?.value?.host
+        setup.update {
+            it.copy(roomFound = roomExists,)
+        }
+        val frame = Frame.Text(Json.encodeToString(setup.value))
+        gameScope.launch {
+            session.send(frame)
+        }
 
+    }
 
     fun generateRandomString(): String {
         val charPool : List<Char> = ('A'..'Z') + ('0'..'9')
-        val randomString = (1..4).map { charPool.shuffled().first() }.joinToString("")
+        val randomString = (1..6).map { charPool.shuffled().first() }.joinToString("")
         return randomString
     }
     //Testing
@@ -199,5 +234,7 @@ class MafiaGame {
         }
 
     }
+
+
 
 }
