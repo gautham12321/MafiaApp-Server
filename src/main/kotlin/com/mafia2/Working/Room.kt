@@ -1,5 +1,7 @@
 package com.mafia2.Working
 
+import com.mafia2.data.AudioState
+import com.mafia2.data.AudioToPlay
 import com.mafia2.data.DoAction
 import com.mafia2.data.GameState
 import com.mafia2.data.Phase
@@ -16,15 +18,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
-class Room (val RoomState: GameState){
+class Room (val RoomState: GameState,val audioState: AudioState ){
 
     var hostPlayer:Player?=null
     val state = MutableStateFlow(RoomState)
+    val audiostate = MutableStateFlow(audioState)
     var currentTurn=Role.CITIZEN
     var toKill:Int?=null
     var toSave:Int?=null
@@ -34,6 +38,7 @@ class Room (val RoomState: GameState){
     var isVoting:Boolean=false
     val playerSockets : MutableMap<Int, WebSocketSession> = mutableMapOf()
     val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO )
+
     fun resetRoomVars(){
 
         currentTurn=Role.CITIZEN
@@ -47,10 +52,11 @@ class Room (val RoomState: GameState){
 
     init {
 
-        state.onEach(::BroadCast).launchIn(gameScope)
 
+        audiostate.onEach(::BroadCastAudioState).launchIn(gameScope)
+        state.onEach(::BroadCastGameState).launchIn(gameScope)
     }
-    suspend fun BroadCast(state:GameState){
+    suspend fun BroadCastGameState(state:GameState){
 
 
         playerSockets.values.forEach { session ->
@@ -59,6 +65,16 @@ class Room (val RoomState: GameState){
         }
 
     }
+    suspend fun BroadCastAudioState(state:AudioState){
+
+
+        playerSockets.values.forEach { session ->
+            println(state)
+            session.send(Json.encodeToString(state))
+        }
+
+    }
+
     fun setHost(player: Player) {
         hostPlayer=player
         state.update {
@@ -79,7 +95,7 @@ class Room (val RoomState: GameState){
         playerSockets[player.id] = session
 
     }
-    fun removePlayer(id:Int,deleteRoom:()->Unit={}) {
+    fun removePlayer(id:Int,deleteRoom:()->Unit={},onKillRoom: () -> Unit) {
         state.update {
             it.copy(players = it.players.minus(it.players.find {
 
@@ -88,13 +104,30 @@ class Room (val RoomState: GameState){
         }
         if(playerSockets.containsKey(id)){playerSockets.remove(id)}
 
+        if( state.value.currentPhase!= Phase.GAMESTARTING && state.value.currentPhase!=Phase.GAMEOVER && playerSockets.isNotEmpty()){
+
+            onKillRoom()
+
+        }
+
         if(playerSockets.isEmpty()){
+            println("\n\n\n\nRoomDeleted\n\n\n\n")
             deleteRoom()
 
 
 
         }
+        else{
+            println("\n\n\n\nRoom NOT Deleted : ${state.value}\n\n\n\n")
+
+            val player= state.value.players.random()
+            setHost(player)
+
+
+        }
     }
+
+
 
     fun randomizeRoles(){
         if(state.value.players.size<state.value.playersNeeded){
@@ -149,7 +182,7 @@ class Room (val RoomState: GameState){
 
         gameScope.launch {
             println("COROTINE START")
-            while(true){
+            while(true /*&& isActive*/){ //might or might not work
                 println("$state:INFINITE LOOP")
                 var mafia:Int = 0
                 var normalPlayers:Int=0
@@ -158,12 +191,20 @@ class Room (val RoomState: GameState){
                 mafia = pair.first
                 normalPlayers = pair.second
 
+
+                delay(3000)
+                audiostate.update {
+                    it.copy(AudioToPlay.VILLAGERCLOSE)
+                }
                 state.update {
 
                     it.copy(currentPhase = Phase.NIGHT,isSuspect = false,isVoting = false, toBeKilled = null, toBeSaved = null,toSuspect = null)
 
                 }
-                delay(1000)
+                delay(5000)
+                audiostate.update {
+                    it.copy(AudioToPlay.DOCTOR_WAKE)
+                }
                 state.update {
 
                     it.copy(currentRoleTurn = Role.DOCTOR)
@@ -182,6 +223,19 @@ class Room (val RoomState: GameState){
 
                     fakeOutRole()
                 }
+                audiostate.update {
+                    it.copy(AudioToPlay.DOCTOR_CLOSE)
+                }
+                state.update {
+
+                    it.copy(currentRoleTurn = null)
+
+
+                }
+                delay(5000)
+                audiostate.update {
+                    it.copy(AudioToPlay.MAFIA_WAKE)
+                }
                 state.update {
 
                     it.copy(currentRoleTurn = Role.MAFIA)
@@ -197,7 +251,19 @@ class Room (val RoomState: GameState){
 
                     fakeOutRole()
                 }
+                audiostate.update {
+                    it.copy(AudioToPlay.MAFIA_CLOSE)
+                }
+                state.update {
 
+                    it.copy(currentRoleTurn = null)
+
+
+                }
+                delay(5000)
+                audiostate.update {
+                    it.copy(AudioToPlay.DETECTIVE_WAKE)
+                }
                 state.update {
 
                     it.copy(currentRoleTurn = Role.DETECTIVE)
@@ -216,12 +282,36 @@ class Room (val RoomState: GameState){
                 }
 
                 println(toKill)
+
+                delay(5000)
                 state.update {
 
-                    it.copy(currentRoleTurn = null, currentPhase = Phase.DAY,
-                        day = it.day + 1, toBeKilled = toKill, toBeSaved = toSave, toSuspect = toSuspect)
+                    it.copy(currentRoleTurn = null)
 
 
+                }
+                //delay(5000)
+                audiostate.update {
+                    it.copy(AudioToPlay.DETECTIVE_CLOSE)
+                }
+                delay(5000)
+
+                state.update {
+
+                    it.copy(currentRoleTurn = null, currentPhase = Phase.DAY, toBeKilled = toKill,
+                        day = it.day + 1, toBeSaved = toSave, toSuspect = toSuspect)
+
+
+
+                }
+                audiostate.update {
+                    it.copy(
+                        if(toKill==null)
+                            AudioToPlay.WAKE_NODEATH
+                        else
+                            AudioToPlay.WAKE_WITHDEATH
+
+                    )
 
                 }
                 if(toKill!=null){
@@ -247,7 +337,10 @@ class Room (val RoomState: GameState){
 
 
                 if (checkifGameOver(mafia, normalPlayers)) return@launch
-
+                delay(5000)
+                audiostate.update {
+                    it.copy(AudioToPlay.START_VOTE)
+                }
                 state.update {
                     it.copy(isVoting = true)
 
@@ -325,6 +418,7 @@ class Room (val RoomState: GameState){
         println("$mafia#$normalPlayers")
         if (mafia >= normalPlayers || mafia == 0) {
 
+            audiostate.update { it.copy(if(mafia==normalPlayers) AudioToPlay.MAFIA_WIN else AudioToPlay.VILLAGER_WIN) }
             state.update {
                 it.copy(currentPhase = Phase.GAMEOVER, isGameOver = true, isWinnerMafia = mafia == normalPlayers )
             }
@@ -475,27 +569,36 @@ class Room (val RoomState: GameState){
 
         println(highest)
         println(votingMap)
-        if(highest!=-1){ // sends -1 if skip vote
-        state.update {
+        gameScope.launch {
+            delay(3000)
+            audiostate.update {
+                it.copy(if(highest==-1) AudioToPlay.VOTE_NOTKICKED else AudioToPlay.VOTE_KICKED)
+            }
+
+            if (highest != -1) { // sends -1 if skip vote
+                state.update {
 
 
-            val p= it.players.map {
+                    val p = it.players.map {
 
-                if(it.id==highest){
-                    Player(it.id,it.name,false,it.avatar)
-                }else{
-                    Player(it.id,it.name,it.isAlive,it.avatar)
+                        if (it.id == highest) {
+                            Player(it.id, it.name, false, it.avatar)
+                        } else {
+                            Player(it.id, it.name, it.isAlive, it.avatar)
+                        }
+                    }
+                    it.copy(players = p)
+
                 }
             }
-            it.copy(players = p)
+            delay(3000)
+
+            state.update { it.copy(isVoting = false, votedPlayersID = emptyList()) }
+            println("Updated")
+            isVoting = false
+            votingMap.clear()
 
         }
-        }
-
-        state.update { it.copy(isVoting = false,votedPlayersID = emptyList()) }
-        println("Updated")
-        isVoting=false
-        votingMap.clear()
 
     }
     fun reset(){
@@ -568,6 +671,10 @@ class Room (val RoomState: GameState){
 
     }
 
+    fun exitRoom(session: WebSocketSession) {
+
+
+    }
 
 
 }

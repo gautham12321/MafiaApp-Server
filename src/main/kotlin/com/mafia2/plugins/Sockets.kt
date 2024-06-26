@@ -81,6 +81,13 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
 
 
                             }
+                            "ExitRoom"->{
+                                 mafiaGame.disconnectPlayer(this)
+
+
+
+                            }
+
 
                             "role_action" -> {
 

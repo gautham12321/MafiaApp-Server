@@ -2,6 +2,7 @@ package com.mafia2.Working
 
 
 
+import com.mafia2.data.AudioState
 import com.mafia2.data.GameState
 
 
@@ -18,6 +19,7 @@ import io.ktor.websocket.send
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -53,7 +55,7 @@ class MafiaGame {
         rooms[roomId] = Room(
             GameState(
             id = roomId
-             )
+             ), AudioState()
         )
         testRoomId=roomId
 
@@ -111,24 +113,41 @@ println(rooms)
 
     }
 
-    fun disconnectPlayer(session: WebSocketSession){ // updated it to use session
+    fun disconnectPlayer(session: WebSocketSession,userCalled:Boolean=false){ // updated it to use session
         var id =0
 
         playerSockets.forEach { (i, webSocketSession) ->
             if(webSocketSession==session){
-
-                playerSockets.remove(i)
+                if(!userCalled) {
+                    playerSockets.remove(i)
+                }
                 id =i
             }
 
         }
         rooms.forEach { (Rid, room) ->
+            if(room.playerSockets.containsKey(id)) {
 
-            room.removePlayer(id){
+                room.removePlayer(id=id, deleteRoom = {
 
 
                     rooms.remove(Rid)
 
+                },onKillRoom={
+                    room.state.update {
+                        it.copy(syncNav = true)}
+                    gameScope.launch {
+                        delay(4000)
+                        room.state.update {
+                            it.copy(syncNav = false)}
+                    }
+
+
+
+
+
+
+                })
             }
 
         }
@@ -184,7 +203,7 @@ println(rooms)
     }
 
     fun generateRandomString(): String {
-        val charPool : List<Char> = ('A'..'Z') + ('0'..'9')
+        val charPool : List<Char> = ('A'..'Z')-('O')
         val randomString = (1..6).map { charPool.shuffled().first() }.joinToString("")
         return randomString
     }
