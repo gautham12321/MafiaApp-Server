@@ -314,6 +314,7 @@ class Room (val RoomState: GameState,val audioState: AudioState ){
                     )
 
                 }
+                delay(2000)
                 if(toKill!=null){
 
                     state.update {
@@ -674,6 +675,12 @@ class Room (val RoomState: GameState,val audioState: AudioState ){
     fun exitRoom(session: WebSocketSession) {
 
 
+    }
+
+    fun sendUpdate(session: WebSocketSession) {
+        gameScope.launch {
+            session.send(Json.encodeToString(state.value))
+        }
     }
 
 

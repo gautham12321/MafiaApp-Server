@@ -254,6 +254,18 @@ println(rooms)
 
     }
 
+    fun getRoomUpdate(session: WebSocketSession) {
+
+        rooms.forEach { (Rid, room) ->
+           if (room.playerSockets.values.contains(session))
+           {
+               room.sendUpdate(session)
+
+           }
+
+        }
+
+    }
 
 
 }

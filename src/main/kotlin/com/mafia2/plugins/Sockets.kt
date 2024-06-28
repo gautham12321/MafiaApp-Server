@@ -87,6 +87,13 @@ fun Application.configureSockets(mafiaGame: MafiaGame) {
 
 
                             }
+                            "get_RoomUpdate"->{
+
+                                mafiaGame.getRoomUpdate(this)
+
+
+
+                            }
 
 
                             "role_action" -> {
