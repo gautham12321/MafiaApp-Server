@@ -1,225 +1,53 @@
-package com.mafia2.plugins
-
-import com.mafia2.Working.MafiaGame
-import com.mafia2.data.DoAction
-import com.mafia2.data.PlayerDet
-import com.mafia2.data.Request
-import com.mafia2.data.gameSettings
-import io.ktor.server.application.*
-import io.ktor.server.routing.*
-import io.ktor.server.websocket.*
-import io.ktor.websocket.*
-import kotlinx.coroutines.channels.consumeEach
-import kotlinx.serialization.json.Json
-import java.time.Duration
-
-fun Application.configureSockets(mafiaGame: MafiaGame) {
-    install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(15)
-        timeout = Duration.ofSeconds(15)
-        maxFrameSize = Long.MAX_VALUE
-        masking = false
-    }
-    routing {
-        webSocket("/play") {
-              // websocketSession
-            try {
-                incoming.consumeEach {
-
-                    if (it is Frame.Text) {
-
-
-                        when(extractAction(it.readText()) ) {
-
-                            /*"player_details" -> {
-
-                                val playerDetails: PlayerDet =
-                                    Json.decodeFromString(it.readText().substringAfter("#"))
-
-                                send(playerDetails.toString())
-                                //println(roomId)
-                                mafiaGame.connectPlayer(playerDetails, this)
-                            }*/
-                            "Create_Room"->{
-                                val playerDetails: PlayerDet =Json.decodeFromString(it.readText().substringAfter("#"))
-                                mafiaGame.createRoom(playerDetails,this)
-                            }
-                            "Join_Room"->{
-
-                                val request: Request<PlayerDet> = Json.decodeFromString(it.readText().substringAfter("#"))
-
-                                mafiaGame.joinRoom(request.information,this,request.roomId)
-
-                            }
-                            "Role_Revealed" -> {
-
-                                val roomId = it.readText().substringAfter("#")
-                                mafiaGame.rooms[roomId]?.roleRevealed() ?: {println("Room not Found")}
-                            }
-
-
-                            "randomize_roles" -> {
-
-                                val roomId = it.readText().substringAfter("#")
-
-                                mafiaGame.rooms[roomId]?.randomizeRoles() ?: {
-
-                                    println("Room not Found")
-                                }  //do something here maybe
-
-                            }
-                            "game_Settings"->{
-
-                                val request:Request<gameSettings> = Json.decodeFromString(it.readText().substringAfter("#"))
-                                mafiaGame.rooms[request.roomId]?.updateGameSettings(request.information)
-
-                            }
-
-                            "start_game" -> {
-                                val roomId = it.readText().substringAfter("#")
-                                mafiaGame.rooms[roomId]?.startGame() ?:{println("Room not Found")}
-
-
-                            }
-                            "ExitRoom"->{
-                                 mafiaGame.disconnectPlayer(this)
-
-
-
-                            }
-                            "get_RoomUpdate"->{
-
-                                mafiaGame.getRoomUpdate(this)
-
-
-
-                            }
-
-
-                            "role_action" -> {
-
-                                val request: Request<DoAction> =
-                                    Json.decodeFromString(it.readText().substringAfter("#"))
-
-                                mafiaGame.rooms[request.roomId]?.RoleAction(request.information)
-
-
-                            }
-
-                            "vote" -> {
-
-
-                                val request: Request<DoAction> =
-                                    Json.decodeFromString(it.readText().substringAfter("#"))
-                                mafiaGame.rooms[request.roomId]?.vote(request.information)
-
-                            }
-                            "restartGame"->{
-
-                                val roomId = it.readText().substringAfter("#")
-
-                                with(mafiaGame.rooms[roomId]!!){
-
-                                    reset()
-                                    /*randomizeRoles()
-                                    startGame()*/
-
-                                }
-
-
-                            }
-                            //Might need change
-                            "Search_Room"->{
-                                val roomId = it.readText().substringAfter("#")
-
-                               mafiaGame.searchRoom(roomId,this)
-
-                                //Could be done in search room itself
-                                //might need a declared setup variable
-
-
-
-                            }
-                            "Sync_Players"->{
-                                val roomId = it.readText().substringAfter("#")
-                                mafiaGame.rooms[roomId]?.syncPlayers()
-                            }
-
-                            //Testing purpose
-                            //TESTINGGGGGG
-
-                            "DoTasks" -> {
-
-                                val players:List<PlayerDet> = listOf(
-                                    PlayerDet("gau")
-                                    ,PlayerDet("adnan"),
-                                    PlayerDet("ali"),
-                                    PlayerDet("mo"),
-                                    PlayerDet("mohamed"),
-                                )
-                                mafiaGame.doTasks_t(players,this)
-
-
-                            }
-
-
-
-                            "showCurrentPlayers"->{
-                                val roomId = it.readText().substringAfter("#")
-                                mafiaGame.rooms[roomId]?.showCurrentPlayers_t(this)
-                            }
-
-
-
-                            "doCurrentRole"->{
-                                val target: Int = it.readText().substringAfter("#").toInt()
-                                mafiaGame.doMafiaAction_t(target)
-                            }
-                            "voteall"->{
-                                val target: Int = it.readText().substringAfter("#").toInt()
-                                mafiaGame.doAllVotes_t(target)
-
-
-                            }
-                            "revealed"->{
-                                val roomId = it.readText().substringAfter("#")
-                                    mafiaGame.rooms[roomId]?.roleRevealed()
-
-                            }
-
-
-                            else->{}
-
-
-                        }
-
-                    }
-
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                this.close()
-                mafiaGame.disconnectPlayer(this)
-            }
-        }
-    }
-
-}
-
-/*private fun DefaultWebSocketServerSession.addPlayers(
-    it: String,
-    mafiaGame: MafiaGame
-) {
-    val allPlayers: List<PlayerDet> =
-        Json.decodeFromString(it.substringAfter("#"))
-    mafiaGame.connectPlayersForTest(allPlayers, this)
-}*/
-
-fun extractAction(readText: String): String {
-
-    val message = readText.substringBefore("#")
-
-    return message
-
-}
+##Mafia Game Ktor Server
+#Overview
+The Mafia Game Ktor Server manages the backend logic and state for the Mafia game app. It handles WebSocket connections for real-time communication, managing game rooms, and synchronizing game states among players. The server ensures seamless game progression by executing actions based on player interactions without the need for a physical narrator.
+
+#Features
+    Create and join game rooms
+    Real-time player and game state synchronization
+    Manage game settings and player roles
+    Handle various game actions such as voting, role actions, and game state updates
+    Disconnect players and clean up resources
+    WebSocket Endpoints
+    
+The server uses WebSockets to handle real-time interactions. Below are the actions supported:
+
+    Create_Room: Creates a new game room
+    Request: Create_Room#{playerDetails}
+    Join_Room: Joins an existing game room
+    Request: Join_Room#{request}
+    Role_Revealed: Reveals roles to players
+    Request: Role_Revealed#{roomId}
+    randomize_roles: Randomizes player roles in a room
+    Request: randomize_roles#{roomId}
+    game_Settings: Updates game settings
+    Request: game_Settings#{request}
+    start_game: Starts the game
+    Request: start_game#{roomId}
+    ExitRoom: Disconnects a player from the room
+    Request: ExitRoom
+    get_RoomUpdate: Sends the latest room state to a player
+    Request: get_RoomUpdate
+    role_action: Executes a role-specific action
+    Request: role_action#{request}
+    vote: Submits a vote
+    Request: vote#{request}
+    restartGame: Restarts the game
+    Request: restartGame#{roomId}
+    Search_Room: Searches for a room by ID
+    Request: Search_Room#{roomId}
+    Sync_Players: Synchronizes player information in a room
+    Request: Sync_Players#{roomId}
+    DoTasks: Testing endpoint for performing predefined tasks
+    Request: DoTasks
+    showCurrentPlayers: Shows the current players in a room
+    Request: showCurrentPlayers#{roomId}
+    doCurrentRole: Executes a role-specific action for testing
+    Request: doCurrentRole#{target}
+    voteall: Executes votes for testing
+    Request: voteall#{target}
+    revealed: Reveals roles (testing)
+    Request: revealed#{roomId}
+    
+#Implementation Details
+The server is implemented using Ktor with WebSocket support. It manages various actions and game state updates through the MafiaGame class, ensuring all game logic is centralized and easily manageable
